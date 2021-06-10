@@ -1,5 +1,13 @@
 use super::{Status, CPU};
 
+impl<'a> CPU<'a> {
+    pub fn debug_load_and_run(&mut self, program: Vec<u8>) {
+        self.load(program);
+        self.program_counter = self.mem_read_u16(0xFFFC);
+        self.run();
+    }
+}
+
 #[test]
 fn lda_immidiate_load_data_accumulator() {
     let mut cpu = CPU::new();
@@ -92,4 +100,18 @@ fn adc_overflow_and_carry_flag() {
     cpu.debug_load_and_run(vec![0xa9, 0xFF, 0x69, 0x01, 0x00]);
     assert_eq!(cpu.accumulator, 1);
     assert_eq!(cpu.status.get(), Status::CARRY)
+}
+
+#[test]
+fn and_same_values() {
+    let mut cpu = CPU::new();
+    cpu.debug_load_and_run(vec![0xa9, 0x11, 0x29, 0x11, 0x00]);
+    assert_eq!(cpu.accumulator, 0x11);
+}
+
+#[test]
+fn and_different_values() {
+    let mut cpu = CPU::new();
+    cpu.debug_load_and_run(vec![0xa9, 0x11, 0x29, 0x01, 0x00]);
+    assert_eq!(cpu.accumulator, 0x01);
 }

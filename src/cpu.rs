@@ -3,16 +3,17 @@ mod opcodes;
 #[cfg(test)]
 mod cpu_tests;
 
-pub struct CPU {
+pub struct CPU<'a> {
     pub accumulator: u8,
     pub status: Status,
     pub program_counter: u16,
     pub register_x: u8,
     pub register_y: u8,
     memory: [u8; 0xFFFF],
+    opcode_table: [opcodes::Opcode<'a>; 0xFF],
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 #[allow(non_camel_case_types)]
 pub enum AddressingMode {
     Immediate,
@@ -23,7 +24,7 @@ pub enum AddressingMode {
     Absolute_Y,
     Indirect_X,
     Indirect_Y,
-    NoneAddressing,
+    None,
 }
 
 /// # Status Register (P) http://wiki.nesdev.com/w/index.php/Status_flags
@@ -45,6 +46,7 @@ impl Status {
     const CARRY: u8 = 0b0000_0001;
     const ZERO: u8 = 0b0000_0010;
     const INTERRUPT_DISABLE: u8 = 0b0000_0100;
+    #[allow(dead_code)]
     const DECIMAL_MODE: u8 = 0b0000_1000;
     const BREAK: u8 = 0b0001_0000;
     const BREAK2: u8 = 0b0010_0000;
@@ -64,8 +66,10 @@ impl Status {
     }
 }
 
-impl CPU {
+impl<'a> CPU<'a> {
     pub fn new() -> Self {
+        let opcodes = CPU::create_opcode_table();
+
         CPU {
             accumulator: 0,
             status: Status { status: 0 },
@@ -73,6 +77,7 @@ impl CPU {
             register_x: 0,
             register_y: 0,
             memory: [0; 0xFFFF],
+            opcode_table: opcodes,
         }
     }
 
@@ -104,12 +109,6 @@ impl CPU {
         self.run();
     }
 
-    pub fn debug_load_and_run(&mut self, program: Vec<u8>) {
-        self.load(program);
-        self.program_counter = self.mem_read_u16(0xFFFC);
-        self.run();
-    }
-
     pub fn load(&mut self, program: Vec<u8>) {
         self.memory[0x8000..(0x8000 + program.len())].copy_from_slice(&program[..]);
         self.mem_write_u16(0xFFFC, 0x8000);
@@ -127,10 +126,11 @@ impl CPU {
     pub fn run(&mut self) {
         let mut continue_execution = true;
         while continue_execution {
-            let opcode = self.mem_read(self.program_counter);
+            let opcode_number = self.mem_read(self.program_counter);
+            let opcode = self.opcode_table[opcode_number as usize];
             self.program_counter += 1;
 
-            continue_execution = self.interpret(opcode);
+            continue_execution = self.interpret(&opcode);
         }
     }
 
@@ -171,9 +171,13 @@ impl CPU {
                 let deref = deref_base.wrapping_add(self.register_y as u16);
                 deref
             }
-            AddressingMode::NoneAddressing => {
-                panic!("mode {:?} is not supported", mode);
+            AddressingMode::None => {
+                panic!("Wrong addressing mode!");
             }
         }
+    }
+
+    fn increment_program_counter(&mut self, step: u8) {
+        self.program_counter += step as u16 - 1;
     }
 }
