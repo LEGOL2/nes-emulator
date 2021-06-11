@@ -13,7 +13,7 @@ pub struct CPU<'a> {
     opcode_table: [opcodes::Opcode<'a>; 0xFF],
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[allow(non_camel_case_types)]
 pub enum AddressingMode {
     Immediate,
