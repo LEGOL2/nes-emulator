@@ -96,11 +96,11 @@ impl<'a> CPU<'a> {
         self.memory[address as usize] = data;
     }
 
-    fn mem_write_u16(&mut self, position: u16, data: u16) {
+    fn mem_write_u16(&mut self, address: u16, data: u16) {
         let hi = (data >> 8) as u8;
         let lo = (data & 0xFF) as u8;
-        self.mem_write(position, lo);
-        self.mem_write(position + 1, hi);
+        self.mem_write(address, lo);
+        self.mem_write(address + 1, hi);
     }
 
     pub fn load_and_run(&mut self, program: Vec<u8>) {

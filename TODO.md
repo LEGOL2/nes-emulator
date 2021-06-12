@@ -1,0 +1,57 @@
+# Opcodes
+- [x] ADC
+- [x] AND
+- [x] ASL
+- [ ] BCC
+- [ ] BCS
+- [ ] BEQ
+- [ ] BIT
+- [ ] BMI
+- [ ] BNE
+- [ ] BPL
+- [ ] BRK
+- [ ] BVC
+- [ ] BVS
+- [x] CLC
+- [x] CLD
+- [x] CLI
+- [x] CLV
+- [x] CMP
+- [x] CPX
+- [x] CPY
+- [x] DEC
+- [x] DEX
+- [x] DEY
+- [x] EOR
+- [x] INC
+- [x] INX
+- [x] INY
+- [ ] JMP
+- [ ] JSR
+- [x] LDA
+- [x] LDX
+- [x] LDY
+- [x] LSR
+- [x] NOP
+- [x] ORA
+- [ ] PHA
+- [ ] PHP
+- [ ] PLA
+- [ ] PLP
+- [ ] ROL
+- [ ] ROR
+- [ ] RTI
+- [ ] RTS
+- [ ] SBC
+- [x] SEC
+- [x] SED
+- [x] SEI
+- [ ] STA
+- [ ] STX
+- [ ] STY
+- [x] TAX
+- [ ] TAY
+- [ ] TSX
+- [ ] TXA
+- [ ] TXS
+- [ ] TYA

@@ -27,6 +27,15 @@ fn ldx_immidiate_load_data_register_x() {
 }
 
 #[test]
+fn ldy_immidiate_load_data_register_y() {
+    let mut cpu = CPU::new();
+    cpu.load_and_run(vec![0xa0, 0x05, 0x00]);
+    assert_eq!(cpu.register_y, 0x05);
+    assert!(cpu.status.get() & Status::ZERO == 0b00);
+    assert!(cpu.status.get() & Status::NEGATIV == 0);
+}
+
+#[test]
 fn lda_zero_flag() {
     let mut cpu = CPU::new();
     cpu.load_and_run(vec![0xa9, 0x00, 0x00]);
@@ -58,6 +67,16 @@ fn inx_overflow() {
     cpu.load_and_run(program);
 
     assert_eq!(cpu.register_x, 4)
+}
+
+#[test]
+fn iny_overflow() {
+    let mut cpu = CPU::new();
+    let mut program = vec![0xc8; 260];
+    program.push(0x00);
+    cpu.load_and_run(program);
+
+    assert_eq!(cpu.register_y, 4)
 }
 
 #[test]
@@ -237,6 +256,15 @@ fn cpy_with_bigger_number() {
 }
 
 #[test]
+fn dec_decrement_value_in_memory() {
+    let mut cpu = CPU::new();
+    cpu.memory[0x02] = 5;
+    cpu.debug_load_and_run(vec![0xc6, 0x02, 0x00]);
+    assert_eq!(cpu.memory[0x02], 4);
+    assert_eq!(cpu.status.get(), 0);
+}
+
+#[test]
 fn dex_decrement_register_x() {
     let mut cpu = CPU::new();
     cpu.register_x = 1;
@@ -252,4 +280,50 @@ fn dey_decrement_register_y() {
     cpu.debug_load_and_run(vec![0x88, 0x00]);
     assert_eq!(cpu.register_y, 0);
     assert_eq!(cpu.status.get(), Status::ZERO);
+}
+
+#[test]
+fn eor_accumulator_with_value() {
+    let mut cpu = CPU::new();
+    cpu.accumulator = 0x0f;
+    cpu.debug_load_and_run(vec![0x49, 0xf0, 0x00]);
+    assert_eq!(cpu.accumulator, 0xff);
+    assert_eq!(cpu.status.get(), Status::NEGATIV);
+}
+
+#[test]
+fn inc_increment_memory_with_overflow() {
+    let mut cpu = CPU::new();
+    cpu.memory[0x02] = 0xff;
+    cpu.debug_load_and_run(vec![0xe6, 0x02, 0x00]);
+    assert_eq!(cpu.memory[0x02], 0x00);
+    assert_eq!(cpu.status.get(), Status::ZERO);
+}
+
+#[test]
+fn lsr_shift_accumulator_left() {
+    let mut cpu = CPU::new();
+    cpu.accumulator = 0x03;
+    cpu.debug_load_and_run(vec![0x4a, 0x00]);
+    assert_eq!(cpu.accumulator, 0x01);
+    assert_eq!(cpu.status.get(), Status::CARRY);
+}
+
+#[test]
+fn nop_do_nothing() {
+    let mut cpu = CPU::new();
+    cpu.debug_load_and_run(vec![0xea, 0x00]);
+    assert_eq!(cpu.accumulator, 0);
+    assert_eq!(cpu.register_x, 0);
+    assert_eq!(cpu.register_y, 0);
+    assert_eq!(cpu.status.get(), 0);
+    assert_eq!(cpu.program_counter, 0x8002);
+}
+
+#[test]
+fn ora_accumulator_memory() {
+    let mut cpu = CPU::new();
+    cpu.accumulator = 0x0f;
+    cpu.debug_load_and_run(vec![0x09, 0xf0, 0x00]);
+    assert_eq!(cpu.accumulator, 0xff);
 }
