@@ -51,6 +51,14 @@ fn tax_move_a_to_x() {
 }
 
 #[test]
+fn tay_move_a_to_y() {
+    let mut cpu = CPU::new();
+    cpu.load_and_run(vec![0xa9, 0x0a, 0xa8, 0x00]);
+
+    assert_eq!(cpu.register_y, 10);
+}
+
+#[test]
 fn inx_increment_x() {
     let mut cpu = CPU::new();
     cpu.register_x = 0;
@@ -128,6 +136,16 @@ fn adc_overflow_and_carry_flag() {
     cpu.debug_load_and_run(vec![0xa9, 0xFF, 0x69, 0x01, 0x00]);
     assert_eq!(cpu.accumulator, 1);
     assert_eq!(cpu.status.get(), Status::CARRY)
+}
+
+#[test]
+fn adc_overflow() {
+    let mut cpu = CPU::new();
+
+    cpu.accumulator = 0xff;
+    cpu.debug_load_and_run(vec![0x69, 0x01, 0x00]);
+    assert_eq!(cpu.accumulator, 0);
+    assert_eq!(cpu.status.get(), Status::ZERO | Status::CARRY);
 }
 
 #[test]
@@ -326,4 +344,143 @@ fn ora_accumulator_memory() {
     cpu.accumulator = 0x0f;
     cpu.debug_load_and_run(vec![0x09, 0xf0, 0x00]);
     assert_eq!(cpu.accumulator, 0xff);
+}
+
+#[test]
+fn pha_push_value_to_stack() {
+    let mut cpu = CPU::new();
+    cpu.accumulator = 0x0f;
+    cpu.debug_load_and_run(vec![0x48, 0x00]);
+    assert_eq!(cpu.memory[0x01ff], 0x0f);
+}
+
+#[test]
+fn php_push_status_to_stack() {
+    let mut cpu = CPU::new();
+    cpu.status.set(Status::CARRY | Status::OVERFLOW);
+    cpu.debug_load_and_run(vec![0x08, 0x00]);
+    assert_eq!(cpu.memory[0x01ff], Status::CARRY | Status::OVERFLOW);
+}
+
+#[test]
+fn pla_pop_value_from_stack() {
+    let mut cpu = CPU::new();
+    cpu.accumulator = 0xf0;
+    cpu.debug_load_and_run(vec![0x48, 0xa9, 0x00, 0x68, 0x00]);
+    assert_eq!(cpu.accumulator, 0xf0);
+    assert_eq!(cpu.status.get(), Status::NEGATIV);
+}
+
+#[test]
+fn plp_pop_status_from_stack() {
+    let mut cpu = CPU::new();
+    cpu.push(Status::CARRY | Status::OVERFLOW);
+    cpu.debug_load_and_run(vec![0x28,  0x00]);
+    assert_eq!(cpu.status.get(), Status::CARRY | Status::OVERFLOW);
+}
+
+#[test]
+fn rol_accumulator() {
+    let mut cpu = CPU::new();
+    cpu.accumulator = 0xf0;
+    cpu.status.set(Status::CARRY);
+    cpu.debug_load_and_run(vec![0x2a, 0x00]);
+
+    assert_eq!(cpu.accumulator, 0xe1);
+    assert_eq!(cpu.status.get(), Status::NEGATIV | Status::CARRY);
+}
+
+#[test]
+fn rol_memory() {
+    let mut cpu = CPU::new();
+    cpu.memory[0x01] = 0xf0;
+    cpu.status.set(Status::CARRY);
+    cpu.accumulator = 0x00;
+    cpu.debug_load_and_run(vec![0x26, 0x01, 0x00]);
+
+    assert_eq!(cpu.memory[0x01], 0xe1);
+    assert_eq!(cpu.status.get(), Status::NEGATIV | Status::ZERO | Status::CARRY);
+}
+
+#[test]
+fn ror_accumulator() {
+    let mut cpu = CPU::new();
+    cpu.accumulator = 0x0f;
+    cpu.status.set(Status::CARRY);
+    cpu.debug_load_and_run(vec![0x6a, 0x00]);
+
+    assert_eq!(cpu.accumulator, 0x87);
+    assert_eq!(cpu.status.get(), Status::NEGATIV | Status::CARRY);
+}
+
+#[test]
+fn ror_memory() {
+    let mut cpu = CPU::new();
+    cpu.memory[0x01] = 0x0f;
+    cpu.status.set(Status::CARRY);
+    cpu.accumulator = 0x00;
+    cpu.debug_load_and_run(vec![0x66, 0x01, 0x00]);
+
+    assert_eq!(cpu.memory[0x01], 0x87);
+    assert_eq!(cpu.status.get(), Status::NEGATIV | Status::ZERO | Status::CARRY);
+}
+
+#[test]
+fn sdc_basic() {
+    let mut cpu = CPU::new();
+
+    cpu.accumulator = 5;
+    cpu.debug_load_and_run(vec![0xe9, 0x04, 0x00]);
+    assert_eq!(cpu.accumulator, 1);
+
+    cpu.reset();
+    cpu.accumulator = 5;
+    cpu.status.set(Status::CARRY);
+    cpu.debug_load_and_run(vec![0xe9, 0x04, 0x00]);
+    assert_eq!(cpu.accumulator, 2);
+}
+
+#[test]
+fn sdc_overflow_and_carry_flag() {
+    let mut cpu = CPU::new();
+
+    cpu.accumulator = 5;
+    cpu.debug_load_and_run(vec![0xe9, 0x06, 0x00]);
+    assert_eq!(cpu.accumulator, 0xff);
+    assert_eq!(cpu.status.get(), Status::NEGATIV);
+
+    cpu.reset();
+    cpu.accumulator = 5;
+    cpu.status.set(Status::CARRY);
+    cpu.debug_load_and_run(vec![0xe9, 0x06, 0x00]);
+    assert_eq!(cpu.accumulator, 0);
+    assert_eq!(cpu.status.get(), Status::ZERO | Status::CARRY)
+}
+
+#[test]
+fn sta_stx_sty_store_value() {
+    let mut cpu = CPU::new();
+    cpu.accumulator = 0x15;
+    cpu.register_x = 0x16;
+    cpu.register_y = 0x17;
+    cpu.debug_load_and_run(vec![0x85, 0x01, 0x86, 0x02, 0x84, 0x03, 0x00]);
+    assert_eq!(cpu.mem_read(0x01), 0x15);
+    assert_eq!(cpu.mem_read(0x02), 0x16);
+    assert_eq!(cpu.mem_read(0x03), 0x17);
+}
+
+#[test]
+fn tax_tay() {
+    let mut cpu = CPU::new();
+    cpu.accumulator = 0x15;
+    cpu.debug_load_and_run(vec![0xaa, 0xa8, 0x00]);
+    assert_eq!(cpu.accumulator, cpu.register_x);
+    assert_eq!(cpu.accumulator, cpu.register_y);
+}
+
+#[test]
+fn tsx_txa_txs() {
+    let mut cpu = CPU::new();
+    cpu.debug_load_and_run(vec![0xba, 0x8a, 0xa9, 0x69, 0xaa, 0x9a, 0x00]);
+    assert_eq!(cpu.stack_pointer, 0x0169);
 }

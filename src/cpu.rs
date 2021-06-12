@@ -7,6 +7,7 @@ pub struct CPU<'a> {
     pub accumulator: u8,
     pub status: Status,
     pub program_counter: u16,
+    pub stack_pointer: u16,
     pub register_x: u8,
     pub register_y: u8,
     memory: [u8; 0xFFFF],
@@ -48,7 +49,9 @@ impl Status {
     const INTERRUPT_DISABLE: u8 = 0b0000_0100;
     #[allow(dead_code)]
     const DECIMAL_MODE: u8 = 0b0000_1000;
+    #[allow(dead_code)]
     const BREAK: u8 = 0b0001_0000;
+    #[allow(dead_code)]
     const BREAK2: u8 = 0b0010_0000;
     const OVERFLOW: u8 = 0b0100_0000;
     const NEGATIV: u8 = 0b1000_0000;
@@ -64,6 +67,10 @@ impl Status {
     fn get(&self) -> u8 {
         self.status
     }
+
+    fn insert(&mut self, data: u8) {
+        self.status = data;
+    }
 }
 
 impl<'a> CPU<'a> {
@@ -74,6 +81,7 @@ impl<'a> CPU<'a> {
             accumulator: 0,
             status: Status { status: 0 },
             program_counter: 0,
+            stack_pointer: 0x01ff,
             register_x: 0,
             register_y: 0,
             memory: [0; 0xFFFF],
@@ -119,6 +127,7 @@ impl<'a> CPU<'a> {
         self.register_x = 0;
         self.register_y = 0;
         self.status.reset(0xff);
+        self.stack_pointer = 0x01ff;
 
         self.program_counter = self.mem_read_u16(0xFFFC);
     }
@@ -179,5 +188,23 @@ impl<'a> CPU<'a> {
 
     fn increment_program_counter(&mut self, step: u8) {
         self.program_counter += step as u16 - 1;
+    }
+
+    fn push(&mut self, data: u8) {
+        self.mem_write(self.stack_pointer, data);
+        self.stack_pointer -= 1;
+        if self.stack_pointer < 0x0100 {
+            panic!("Stack overflow");
+        }
+    }
+
+    fn pop(&mut self) -> u8 {
+        self.stack_pointer += 1;
+        if self.stack_pointer > 0x01ff {
+            panic!("Read from empty stack");
+        }
+        let data = self.mem_read(self.stack_pointer);
+
+        data
     }
 }

@@ -34,24 +34,24 @@
 - [x] LSR
 - [x] NOP
 - [x] ORA
-- [ ] PHA
-- [ ] PHP
-- [ ] PLA
-- [ ] PLP
-- [ ] ROL
-- [ ] ROR
+- [x] PHA
+- [x] PHP
+- [x] PLA
+- [x] PLP
+- [x] ROL
+- [x] ROR
 - [ ] RTI
 - [ ] RTS
-- [ ] SBC
+- [x] SBC
 - [x] SEC
 - [x] SED
 - [x] SEI
-- [ ] STA
-- [ ] STX
-- [ ] STY
+- [x] STA
+- [x] STX
+- [x] STY
 - [x] TAX
-- [ ] TAY
-- [ ] TSX
-- [ ] TXA
-- [ ] TXS
-- [ ] TYA
+- [x] TAY
+- [x] TSX
+- [x] TXA
+- [x] TXS
+- [x] TYA

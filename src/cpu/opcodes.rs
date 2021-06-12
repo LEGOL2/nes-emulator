@@ -52,14 +52,8 @@ impl<'a> CPU<'a> {
             0x0A | 0x06 | 0x16 | 0x0E | 0x1E => self.asl(opcode),
 
             0x18 => self.clc(),
-            0x38 => self.sec(),
-            
             0xD8 => self.cld(),
-            0xF8 => self.sed(),
-
             0x58 => self.cli(),
-            0x78 => self.sei(),
-
             0xB8 => self.clv(),
 
             0xC6 | 0xD6 | 0xCE | 0xDE => self.dec(opcode),
@@ -82,7 +76,30 @@ impl<'a> CPU<'a> {
 
             0x09 | 0x05 | 0x15 | 0x0D | 0x1D | 0x19 | 0x01 | 0x11 => self.ora(opcode),
 
-            0xAA => self.tax(opcode),
+            0x48 => self.pha(),
+            0x08 => self.php(),
+            0x68 => self.pla(),
+            0x28 => self.plp(),
+ |          
+            0x2A | 0x26 | 0x36 | 0x2E | 0x3E => self.rol(opcode),
+            0x6A | 0x66 | 0x76 | 0x6E | 0x7E => self.ror(opcode),
+
+            0xE9 | 0xE5 | 0xF5 | 0xED | 0xFD | 0xF9 | 0xE1 | 0xF1 => self.sbc(opcode),
+
+            0x38 => self.sec(),
+            0xF8 => self.sed(),
+            0x78 => self.sei(),
+
+            0x85 | 0x95 | 0x8D | 0x9D | 0x99 | 0x81 | 0x91 => self.sta(opcode),           
+            0x86 | 0x96 | 0x8E => self.stx(opcode),
+            0x84 | 0x94 | 0x8C => self.sty(opcode),
+
+            0xAA => self.tax(),
+            0xA8 => self.tay(),
+            0xBA => self.tsx(),
+            0x8A => self.txa(),
+            0x9A => self.txs(),
+            0x98 => self.tya(),
 
             _ => panic!("Unknown opcode: {:#x}", opcode.code),
         }
@@ -275,12 +292,157 @@ impl<'a> CPU<'a> {
         self.increment_program_counter(opcode.length);
     }
 
-    fn tax(&mut self, opcode: &Opcode) {
-        self.register_x = self.accumulator;
-        self.update_zero_and_negative_flags(self.register_x);
+    fn pha(&mut self) {
+        self.push(self.accumulator);
+    }
+
+    fn php(&mut self) {
+        self.push(self.status.get());
+    }
+
+    fn pla(&mut self) {
+        self.accumulator = self.pop();
+        self.update_zero_and_negative_flags(self.accumulator);
+    }
+
+    fn plp(&mut self) {
+        let data = self.pop();
+        self.status.insert(data);
+    }
+
+    fn rol(&mut self, opcode: &Opcode) {
+        let carry;
+        let result;
+        if opcode.mode == AddressingMode::None {
+            carry = self.accumulator & 0x80;
+            self.accumulator = self.accumulator << 1;
+            self.accumulator |= self.status.get() & Status::CARRY;
+            result = self.accumulator;
+        } else {
+            let address = self.get_operand_address(opcode.mode);
+            let mut value = self.mem_read(address);
+            carry = value & 0x80;
+            value = value << 1;
+            value |= self.status.get() & Status::CARRY;
+            self.mem_write(address, value);
+            result = value;
+        }
+
+        if carry == 0x80 {
+            self.status.set(Status::CARRY);
+        } else {
+            self.status.reset(Status::CARRY);
+        }
+        if result & 0x80 == 0x80 {
+            self.status.set(Status::NEGATIV);
+        } else {
+            self.status.reset(Status::NEGATIV);
+        }
+        if self.accumulator == 0 {
+            self.status.set(Status::ZERO);
+        } else {
+            self.status.reset(Status::ZERO);
+        }
         self.increment_program_counter(opcode.length);
     }
 
+    fn ror(&mut self, opcode: &Opcode) {
+        let carry;
+        let result;
+        if opcode.mode == AddressingMode::None {
+            carry = self.accumulator & 0x01;
+            self.accumulator = self.accumulator >> 1;
+            let old_carry = self.status.get() & Status::CARRY;
+            if old_carry == 1 {
+                self.accumulator |= 0x80;
+            }
+            result = self.accumulator;
+        } else {
+            let address = self.get_operand_address(opcode.mode);
+            let mut value = self.mem_read(address);
+            carry = value & 0x01;
+            value = value >> 1;
+            let old_carry = self.status.get() & Status::CARRY;
+            if old_carry == 1 {
+                value |= 0x80;
+            }
+            self.mem_write(address, value);
+            result = value;
+        }
+
+        if carry == 1 {
+            self.status.set(Status::CARRY);
+        } else {
+            self.status.reset(Status::CARRY);
+        }
+        if result & 0x80 == 0x80 {
+            self.status.set(Status::NEGATIV);
+        } else {
+            self.status.reset(Status::NEGATIV);
+        }
+        if self.accumulator == 0 {
+            self.status.set(Status::ZERO);
+        } else {
+            self.status.reset(Status::ZERO);
+        }
+        self.increment_program_counter(opcode.length);
+    }
+
+    fn sbc(&mut self, opcode: &Opcode) {
+        let address = self.get_operand_address(opcode.mode);
+        let mut value = self.mem_read(address);
+        value = !value + 1;
+        self.add_to_accumulator(value);
+        self.update_zero_and_negative_flags(self.accumulator);
+        self.increment_program_counter(opcode.length);
+    }
+
+    fn sta(&mut self, opcode: &Opcode) {
+        let address = self.get_operand_address(opcode.mode);
+        self.mem_write(address, self.accumulator);
+        self.increment_program_counter(opcode.length);
+    }
+    
+    fn stx(&mut self, opcode: &Opcode) {
+        let address = self.get_operand_address(opcode.mode);
+        self.mem_write(address, self.register_x);
+        self.increment_program_counter(opcode.length);
+    }
+
+    fn sty(&mut self, opcode: &Opcode) {
+        let address = self.get_operand_address(opcode.mode);
+        self.mem_write(address, self.register_y);
+        self.increment_program_counter(opcode.length);
+    }
+
+    fn tax(&mut self) {
+        self.register_x = self.accumulator;
+        self.update_zero_and_negative_flags(self.register_x);
+    }
+
+    fn tay(&mut self) {
+        self.register_y = self.accumulator;
+        self.update_zero_and_negative_flags(self.register_y);
+    }
+
+    fn tsx(&mut self) {
+        self.register_x = self.stack_pointer as u8;
+        self.update_zero_and_negative_flags(self.register_x);
+    }
+
+    fn txa(&mut self) {
+        self.accumulator = self.register_x;
+        self.update_zero_and_negative_flags(self.accumulator);
+    }
+
+    fn txs(&mut self) {
+        self.stack_pointer = (self.register_x as u16) | 0x100;
+    }
+
+    fn tya(&mut self) {
+        self.accumulator = self.register_y;
+        self.update_zero_and_negative_flags(self.accumulator);
+    }
 
     fn update_zero_and_negative_flags(&mut self, result: u8) {
         if result == 0 {
@@ -445,11 +607,58 @@ impl<'a> CPU<'a> {
         opcode_table[0x01] = Opcode::new(0x01, "ORA", 2, 6, AddressingMode::Indirect_X);
         opcode_table[0x11] = Opcode::new(0x11, "ORA", 2, 5, AddressingMode::Indirect_Y);
 
+        opcode_table[0x48] = Opcode::new(0x48, "PHA", 1, 3, AddressingMode::None);
+        opcode_table[0x08] = Opcode::new(0x08, "PHP", 1, 3, AddressingMode::None);
+        opcode_table[0x68] = Opcode::new(0x68, "PLA", 1, 4, AddressingMode::None);
+        opcode_table[0x28] = Opcode::new(0x28, "PLP", 1, 4, AddressingMode::None);
+
+        opcode_table[0x2A] = Opcode::new(0x2A, "ROL", 1, 2, AddressingMode::None);
+        opcode_table[0x26] = Opcode::new(0x26, "ROL", 2, 5, AddressingMode::ZeroPage);
+        opcode_table[0x36] = Opcode::new(0x36, "ROL", 2, 6, AddressingMode::ZeroPage_X);
+        opcode_table[0x2E] = Opcode::new(0x2E, "ROL", 3, 6, AddressingMode::Absolute);
+        opcode_table[0x3E] = Opcode::new(0x3E, "ROL", 3, 7, AddressingMode::Absolute_X);
+
+        opcode_table[0x6A] = Opcode::new(0x6A, "ROR", 1, 2, AddressingMode::None);
+        opcode_table[0x66] = Opcode::new(0x66, "ROR", 2, 5, AddressingMode::ZeroPage);
+        opcode_table[0x76] = Opcode::new(0x76, "ROR", 2, 6, AddressingMode::ZeroPage_X);
+        opcode_table[0x6E] = Opcode::new(0x6E, "ROR", 3, 6, AddressingMode::Absolute);
+        opcode_table[0x7E] = Opcode::new(0x7E, "ROR", 3, 7, AddressingMode::Absolute_X);
+
+        opcode_table[0xE9] = Opcode::new(0xE9, "SBC", 2, 2, AddressingMode::Immediate);
+        opcode_table[0xE5] = Opcode::new(0xE5, "SBC", 2, 3, AddressingMode::ZeroPage);
+        opcode_table[0xF5] = Opcode::new(0xF5, "SBC", 2, 4, AddressingMode::ZeroPage_X);
+        opcode_table[0xED] = Opcode::new(0xED, "SBC", 3, 4, AddressingMode::Absolute);
+        opcode_table[0xFD] = Opcode::new(0xFD, "SBC", 3, 4, AddressingMode::Absolute_X);
+        opcode_table[0xF9] = Opcode::new(0xF9, "SBC", 3, 4, AddressingMode::Absolute_Y);
+        opcode_table[0xE1] = Opcode::new(0xE1, "SBC", 2, 6, AddressingMode::Indirect_X);
+        opcode_table[0xF1] = Opcode::new(0xF1, "SBC", 2, 5, AddressingMode::Indirect_Y);
+
         opcode_table[0x38] = Opcode::new(0x38, "SEC", 1, 2, AddressingMode::None);
         opcode_table[0xF8] = Opcode::new(0xF8, "SED", 1, 2, AddressingMode::None);
         opcode_table[0x78] = Opcode::new(0x78, "SEI", 1, 2, AddressingMode::None);
 
+        opcode_table[0x85] = Opcode::new(0x85, "STA", 2, 3, AddressingMode::ZeroPage);
+        opcode_table[0x95] = Opcode::new(0x95, "STA", 2, 4, AddressingMode::ZeroPage_X);
+        opcode_table[0x8D] = Opcode::new(0x8D, "STA", 3, 4, AddressingMode::Absolute);
+        opcode_table[0x9D] = Opcode::new(0x9D, "STA", 3, 5, AddressingMode::Absolute_X);
+        opcode_table[0x99] = Opcode::new(0x99, "STA", 3, 5, AddressingMode::Absolute_Y);
+        opcode_table[0x81] = Opcode::new(0x81, "STA", 2, 6, AddressingMode::Indirect_X);
+        opcode_table[0x91] = Opcode::new(0x91, "STA", 2, 6, AddressingMode::Indirect_Y);
+
+        opcode_table[0x86] = Opcode::new(0x86, "STX", 2, 3, AddressingMode::ZeroPage);
+        opcode_table[0x96] = Opcode::new(0x96, "STX", 2, 4, AddressingMode::ZeroPage_X);
+        opcode_table[0x8E] = Opcode::new(0x8E, "STX", 3, 4, AddressingMode::Absolute);
+
+        opcode_table[0x84] = Opcode::new(0x84, "STY", 2, 3, AddressingMode::ZeroPage);
+        opcode_table[0x94] = Opcode::new(0x94, "STY", 2, 4, AddressingMode::ZeroPage_X);
+        opcode_table[0x8C] = Opcode::new(0x8C, "STY", 3, 4, AddressingMode::Absolute);
+
         opcode_table[0xAA] = Opcode::new(0xAA, "TAX", 1, 2, AddressingMode::None);
+        opcode_table[0xA8] = Opcode::new(0xA8, "TAY", 1, 2, AddressingMode::None);
+        opcode_table[0xBA] = Opcode::new(0xBA, "TSX", 1, 2, AddressingMode::None);
+        opcode_table[0x8A] = Opcode::new(0x8A, "TXA", 1, 2, AddressingMode::None);
+        opcode_table[0x9A] = Opcode::new(0x9A, "TXS", 1, 2, AddressingMode::None);
+        opcode_table[0x98] = Opcode::new(0x98, "TYA", 1, 2, AddressingMode::None);
 
         opcode_table
     }
