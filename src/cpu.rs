@@ -49,9 +49,7 @@ impl Status {
     const INTERRUPT_DISABLE: u8 = 0b0000_0100;
     #[allow(dead_code)]
     const DECIMAL_MODE: u8 = 0b0000_1000;
-    #[allow(dead_code)]
     const BREAK: u8 = 0b0001_0000;
-    #[allow(dead_code)]
     const BREAK2: u8 = 0b0010_0000;
     const OVERFLOW: u8 = 0b0100_0000;
     const NEGATIV: u8 = 0b1000_0000;
@@ -71,6 +69,10 @@ impl Status {
     fn insert(&mut self, data: u8) {
         self.status = data;
     }
+
+    fn contains(&self, flag: u8) -> bool {
+        self.status & flag != 0
+    }
 }
 
 impl<'a> CPU<'a> {
@@ -81,7 +83,7 @@ impl<'a> CPU<'a> {
             accumulator: 0,
             status: Status { status: 0 },
             program_counter: 0,
-            stack_pointer: 0x01ff,
+            stack_pointer: 0x01fd,
             register_x: 0,
             register_y: 0,
             memory: [0; 0xFFFF],
@@ -89,22 +91,22 @@ impl<'a> CPU<'a> {
         }
     }
 
-    fn mem_read(&self, address: u16) -> u8 {
+    pub fn mem_read(&self, address: u16) -> u8 {
         self.memory[address as usize]
     }
 
-    fn mem_read_u16(&self, position: u16) -> u16 {
+    pub fn mem_read_u16(&self, position: u16) -> u16 {
         let lo = self.mem_read(position) as u16;
         let hi = self.mem_read(position + 1) as u16;
 
         (hi << 8) | lo
     }
 
-    fn mem_write(&mut self, address: u16, data: u8) {
+    pub fn mem_write(&mut self, address: u16, data: u8) {
         self.memory[address as usize] = data;
     }
 
-    fn mem_write_u16(&mut self, address: u16, data: u16) {
+    pub fn mem_write_u16(&mut self, address: u16, data: u16) {
         let hi = (data >> 8) as u8;
         let lo = (data & 0xFF) as u8;
         self.mem_write(address, lo);
@@ -118,8 +120,8 @@ impl<'a> CPU<'a> {
     }
 
     pub fn load(&mut self, program: Vec<u8>) {
-        self.memory[0x8000..(0x8000 + program.len())].copy_from_slice(&program[..]);
-        self.mem_write_u16(0xFFFC, 0x8000);
+        self.memory[0x0600..(0x0600 + program.len())].copy_from_slice(&program[..]);
+        self.mem_write_u16(0xFFFC, 0x0600);
     }
 
     pub fn reset(&mut self) {
@@ -127,14 +129,22 @@ impl<'a> CPU<'a> {
         self.register_x = 0;
         self.register_y = 0;
         self.status.reset(0xff);
-        self.stack_pointer = 0x01ff;
+        self.stack_pointer = 0x01fd;
 
         self.program_counter = self.mem_read_u16(0xFFFC);
     }
 
     pub fn run(&mut self) {
+        self.run_with_callback(|_| {});
+    }
+
+    pub fn run_with_callback<F>(&mut self, mut callback: F)
+    where
+        F: FnMut(&mut CPU),
+    {
         let mut continue_execution = true;
         while continue_execution {
+            callback(self);
             let opcode_number = self.mem_read(self.program_counter);
             let opcode = self.opcode_table[opcode_number as usize];
             self.program_counter += 1;
@@ -198,6 +208,13 @@ impl<'a> CPU<'a> {
         }
     }
 
+    fn push_u16(&mut self, data: u16) {
+        let hi = (data >> 8) as u8;
+        let lo = (data & 0xff) as u8;
+        self.push(hi);
+        self.push(lo);
+    }
+
     fn pop(&mut self) -> u8 {
         self.stack_pointer += 1;
         if self.stack_pointer > 0x01ff {
@@ -206,5 +223,12 @@ impl<'a> CPU<'a> {
         let data = self.mem_read(self.stack_pointer);
 
         data
+    }
+
+    fn pop_u16(&mut self) -> u16 {
+        let lo = self.pop() as u16;
+        let hi = self.pop() as u16;
+
+        hi << 8 | lo
     }
 }

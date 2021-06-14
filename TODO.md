@@ -2,16 +2,16 @@
 - [x] ADC
 - [x] AND
 - [x] ASL
-- [ ] BCC
-- [ ] BCS
-- [ ] BEQ
-- [ ] BIT
-- [ ] BMI
-- [ ] BNE
-- [ ] BPL
-- [ ] BRK
-- [ ] BVC
-- [ ] BVS
+- [x] BCC
+- [x] BCS
+- [x] BEQ
+- [x] BIT
+- [x] BMI
+- [x] BNE
+- [x] BPL
+- [x] BRK
+- [x] BVC
+- [x] BVS
 - [x] CLC
 - [x] CLD
 - [x] CLI
@@ -26,8 +26,8 @@
 - [x] INC
 - [x] INX
 - [x] INY
-- [ ] JMP
-- [ ] JSR
+- [x] JMP
+- [x] JSR
 - [x] LDA
 - [x] LDX
 - [x] LDY
@@ -40,8 +40,8 @@
 - [x] PLP
 - [x] ROL
 - [x] ROR
-- [ ] RTI
-- [ ] RTS
+- [x] RTI
+- [x] RTS
 - [x] SBC
 - [x] SEC
 - [x] SED

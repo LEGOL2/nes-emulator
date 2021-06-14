@@ -375,7 +375,7 @@ fn pla_pop_value_from_stack() {
 fn plp_pop_status_from_stack() {
     let mut cpu = CPU::new();
     cpu.push(Status::CARRY | Status::OVERFLOW);
-    cpu.debug_load_and_run(vec![0x28,  0x00]);
+    cpu.debug_load_and_run(vec![0x28, 0x00]);
     assert_eq!(cpu.status.get(), Status::CARRY | Status::OVERFLOW);
 }
 
@@ -399,7 +399,10 @@ fn rol_memory() {
     cpu.debug_load_and_run(vec![0x26, 0x01, 0x00]);
 
     assert_eq!(cpu.memory[0x01], 0xe1);
-    assert_eq!(cpu.status.get(), Status::NEGATIV | Status::ZERO | Status::CARRY);
+    assert_eq!(
+        cpu.status.get(),
+        Status::NEGATIV | Status::ZERO | Status::CARRY
+    );
 }
 
 #[test]
@@ -422,7 +425,10 @@ fn ror_memory() {
     cpu.debug_load_and_run(vec![0x66, 0x01, 0x00]);
 
     assert_eq!(cpu.memory[0x01], 0x87);
-    assert_eq!(cpu.status.get(), Status::NEGATIV | Status::ZERO | Status::CARRY);
+    assert_eq!(
+        cpu.status.get(),
+        Status::NEGATIV | Status::ZERO | Status::CARRY
+    );
 }
 
 #[test]
@@ -483,4 +489,31 @@ fn tsx_txa_txs() {
     let mut cpu = CPU::new();
     cpu.debug_load_and_run(vec![0xba, 0x8a, 0xa9, 0x69, 0xaa, 0x9a, 0x00]);
     assert_eq!(cpu.stack_pointer, 0x0169);
+}
+
+#[test]
+fn bit_with_same_values() {
+    let mut cpu = CPU::new();
+    cpu.accumulator = 0b1111_0000;
+    cpu.memory[0x02] = 0b1111_0000;
+    cpu.debug_load_and_run(vec![0x24, 0x02, 0x00]);
+    assert_eq!(cpu.status.get(), Status::NEGATIV | Status::OVERFLOW);
+}
+
+#[test]
+fn bit_with_different_values() {
+    let mut cpu = CPU::new();
+    cpu.accumulator = 0b0011_0011;
+    cpu.memory[0x02] = 0b0011_0000;
+    cpu.debug_load_and_run(vec![0x24, 0x02, 0x00]);
+    assert_eq!(cpu.status.get(), 0);
+}
+
+#[test]
+fn bit_with_different_values_2() {
+    let mut cpu = CPU::new();
+    cpu.accumulator = 0b0011_0011;
+    cpu.memory[0x02] = 0b0000_0000;
+    cpu.debug_load_and_run(vec![0x24, 0x02, 0x00]);
+    assert_eq!(cpu.status.get(), Status::ZERO);
 }

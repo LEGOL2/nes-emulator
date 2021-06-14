@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use super::{AddressingMode, Status, CPU};
 
 #[derive(Clone, Copy)]
@@ -31,6 +33,12 @@ impl<'a> Opcode<'a> {
     }
 }
 
+impl<'a> Display for Opcode<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.mnemonic)
+    }
+}
+
 impl<'a> CPU<'a> {
     pub fn interpret(&mut self, opcode: &Opcode) -> bool {
         match opcode.code {
@@ -43,13 +51,25 @@ impl<'a> CPU<'a> {
 
             0x29 | 0x25 | 0x35 | 0x2D | 0x3D | 0x39 | 0x21 | 0x31 => self.and(opcode),
 
+            0x0A | 0x06 | 0x16 | 0x0E | 0x1E => self.asl(opcode),
+
+            0x90 => self.bcc(),
+            0xB0 => self.bcs(),
+            0xF0 => self.beq(),
+
+            0x24 | 0x2C => self.bit(opcode),
+
+            0x30 => self.bmi(),
+            0xD0 => self.bne(),
+            0x10 => self.bpl(),
+            0x50 => self.bvc(),
+            0x70 => self.bvs(),
+
             0xC9 | 0xC5 | 0xD5 | 0xCD | 0xDD | 0xD9 | 0xC1 | 0xD1 => self.cmp(opcode),
 
             0xE0 | 0xE4 | 0xEC => self.cpx(opcode),
 
             0xC0 | 0xC4 | 0xCC => self.cpy(opcode),
-
-            0x0A | 0x06 | 0x16 | 0x0E | 0x1E => self.asl(opcode),
 
             0x18 => self.clc(),
             0xD8 => self.cld(),
@@ -61,15 +81,19 @@ impl<'a> CPU<'a> {
             0x88 => self.dey(),
 
             0x49 | 0x45 | 0x55 | 0x4D | 0x5D | 0x59 | 0x41 | 0x51 => self.eor(opcode),
-            
+
             0xE6 | 0xF6 | 0xEE | 0xFE => self.inc(opcode),
             0xE8 => self.inx(opcode),
             0xC8 => self.iny(opcode),
 
+            0x4C => self.jmp_absolute(),
+            0x6C => self.jmp_indirect(),
+            0x20 => self.jsr(),
+
             0xA9 | 0xA5 | 0xB5 | 0xAD | 0xBD | 0xB9 | 0xA1 | 0xB1 => self.lda(opcode),
             0xA2 | 0xA6 | 0xB6 | 0xAE | 0xBE => self.ldx(opcode),
             0xA0 | 0xA4 | 0xB4 | 0xAC | 0xBC => self.ldy(opcode),
-            
+
             0x4A | 0x46 | 0x56 | 0x4E | 0x5E => self.lsr(opcode),
 
             0xEA => self.nop(),
@@ -80,9 +104,12 @@ impl<'a> CPU<'a> {
             0x08 => self.php(),
             0x68 => self.pla(),
             0x28 => self.plp(),
- |          
+
             0x2A | 0x26 | 0x36 | 0x2E | 0x3E => self.rol(opcode),
             0x6A | 0x66 | 0x76 | 0x6E | 0x7E => self.ror(opcode),
+
+            0x40 => self.rti(),
+            0x60 => self.rts(),
 
             0xE9 | 0xE5 | 0xF5 | 0xED | 0xFD | 0xF9 | 0xE1 | 0xF1 => self.sbc(opcode),
 
@@ -90,7 +117,7 @@ impl<'a> CPU<'a> {
             0xF8 => self.sed(),
             0x78 => self.sei(),
 
-            0x85 | 0x95 | 0x8D | 0x9D | 0x99 | 0x81 | 0x91 => self.sta(opcode),           
+            0x85 | 0x95 | 0x8D | 0x9D | 0x99 | 0x81 | 0x91 => self.sta(opcode),
             0x86 | 0x96 | 0x8E => self.stx(opcode),
             0x84 | 0x94 | 0x8C => self.sty(opcode),
 
@@ -129,7 +156,7 @@ impl<'a> CPU<'a> {
             value = self.accumulator;
         } else {
             let address = self.get_operand_address(opcode.mode);
-            value = self.mem_read(address);  
+            value = self.mem_read(address);
         }
 
         let result = (value as u16) << 1;
@@ -140,6 +167,63 @@ impl<'a> CPU<'a> {
         self.accumulator = result as u8;
         self.update_zero_and_negative_flags(self.accumulator);
         self.increment_program_counter(opcode.length);
+    }
+
+    fn bcc(&mut self) {
+        self.branch(!self.status.contains(Status::CARRY));
+    }
+
+    fn bcs(&mut self) {
+        self.branch(self.status.contains(Status::CARRY));
+    }
+
+    fn beq(&mut self) {
+        self.branch(self.status.contains(Status::ZERO));
+    }
+
+    fn bit(&mut self, opcode: &Opcode) {
+        let address = self.get_operand_address(opcode.mode);
+        let value = self.mem_read(address);
+
+        let result = self.accumulator & value;
+        if result == 0 {
+            self.status.set(Status::ZERO);
+        } else {
+            self.status.reset(Status::ZERO);
+        }
+
+        if value & 0x80 != 0 {
+            self.status.set(Status::NEGATIV);
+        } else {
+            self.status.reset(Status::NEGATIV);
+        }
+        if value & 0x40 != 0 {
+            self.status.set(Status::OVERFLOW);
+        } else {
+            self.status.reset(Status::OVERFLOW);
+        }
+
+        self.increment_program_counter(opcode.length);
+    }
+
+    fn bmi(&mut self) {
+        self.branch(self.status.contains(Status::NEGATIV));
+    }
+
+    fn bne(&mut self) {
+        self.branch(!self.status.contains(Status::ZERO));
+    }
+
+    fn bpl(&mut self) {
+        self.branch(!self.status.contains(Status::NEGATIV));
+    }
+
+    fn bvc(&mut self) {
+        self.branch(!self.status.contains(Status::OVERFLOW));
+    }
+
+    fn bvs(&mut self) {
+        self.branch(self.status.contains(Status::OVERFLOW));
     }
 
     fn cmp(&mut self, opcode: &Opcode) {
@@ -231,6 +315,35 @@ impl<'a> CPU<'a> {
         self.increment_program_counter(opcode.length);
     }
 
+    fn jmp_absolute(&mut self) {
+        let mem_address = self.mem_read_u16(self.program_counter);
+        self.program_counter = mem_address;
+    }
+
+    fn jmp_indirect(&mut self) {
+        let mem_address = self.mem_read_u16(self.program_counter);
+        //6502 bug mode with with page boundary:
+        //  if address $3000 contains $40, $30FF contains $80, and $3100 contains $50,
+        // the result of JMP ($30FF) will be a transfer of control to $4080 rather than $5080 as you intended
+        // i.e. the 6502 took the low byte of the address from $30FF and the high byte from $3000
+
+        let indirect_ref = if mem_address & 0x00FF == 0x00FF {
+            let lo = self.mem_read(mem_address);
+            let hi = self.mem_read(mem_address & 0xFF00);
+            (hi as u16) << 8 | (lo as u16)
+        } else {
+            self.mem_read_u16(mem_address)
+        };
+
+        self.program_counter = indirect_ref;
+    }
+
+    fn jsr(&mut self) {
+        self.push_u16(self.program_counter + 2 - 1);
+        let address = self.mem_read_u16(self.program_counter);
+        self.program_counter = address;
+    }
+
     fn lda(&mut self, opcode: &Opcode) {
         let address = self.get_operand_address(opcode.mode);
         let value = self.mem_read(address);
@@ -283,7 +396,7 @@ impl<'a> CPU<'a> {
 
     fn nop(&self) {}
 
-    fn ora (&mut self, opcode: &Opcode) {
+    fn ora(&mut self, opcode: &Opcode) {
         let address = self.get_operand_address(opcode.mode);
         let value = self.mem_read(address);
 
@@ -388,6 +501,19 @@ impl<'a> CPU<'a> {
         self.increment_program_counter(opcode.length);
     }
 
+    fn rti(&mut self) {
+        let flags = self.pop();
+        self.status.insert(flags);
+        self.status.reset(Status::BREAK);
+        self.status.insert(Status::BREAK2);
+
+        self.program_counter = self.pop_u16();
+    }
+
+    fn rts(&mut self) {
+        self.program_counter = self.pop_u16() + 1;
+    }
+
     fn sbc(&mut self, opcode: &Opcode) {
         let address = self.get_operand_address(opcode.mode);
         let mut value = self.mem_read(address);
@@ -402,7 +528,7 @@ impl<'a> CPU<'a> {
         self.mem_write(address, self.accumulator);
         self.increment_program_counter(opcode.length);
     }
-    
+
     fn stx(&mut self, opcode: &Opcode) {
         let address = self.get_operand_address(opcode.mode);
         self.mem_write(address, self.register_x);
@@ -479,18 +605,29 @@ impl<'a> CPU<'a> {
         self.accumulator = result;
     }
 
-    fn compare(&mut self, opcode: &Opcode, register: u8) {
+    fn compare(&mut self, opcode: &Opcode, data: u8) {
         let address = self.get_operand_address(opcode.mode);
         let value = self.mem_read(address);
 
-        if register >= value {
+        if value <= data {
             self.status.set(Status::CARRY);
         } else {
             self.status.reset(Status::CARRY);
         }
 
-        self.update_zero_and_negative_flags(register.wrapping_sub(value));
+        self.update_zero_and_negative_flags(data.wrapping_sub(value));
         self.increment_program_counter(opcode.length);
+    }
+
+    fn branch(&mut self, condition: bool) {
+        let mut jump: i8 = 0;
+        if condition {
+            jump = self.mem_read(self.program_counter) as i8;
+        }
+        self.program_counter = self
+                .program_counter
+                .wrapping_add(1)
+                .wrapping_add(jump as u16);
     }
 
     pub fn create_opcode_table() -> [Opcode<'a>; 0xFF] {
@@ -520,7 +657,21 @@ impl<'a> CPU<'a> {
         opcode_table[0x0E] = Opcode::new(0x0E, "ASL", 1, 6, AddressingMode::Absolute);
         opcode_table[0x1E] = Opcode::new(0x1E, "ASL", 1, 7, AddressingMode::Absolute_X);
 
+        opcode_table[0x90] = Opcode::new(0x90, "BCC", 2, 2, AddressingMode::None);
+        opcode_table[0xB0] = Opcode::new(0xB0, "BCS", 2, 2, AddressingMode::None);
+        opcode_table[0xF0] = Opcode::new(0xF0, "BEQ", 2, 2, AddressingMode::None);
+
+        opcode_table[0x24] = Opcode::new(0x24, "BIT", 2, 3, AddressingMode::ZeroPage);
+        opcode_table[0x2C] = Opcode::new(0x2C, "BIT", 3, 4, AddressingMode::Absolute);
+
+        opcode_table[0x30] = Opcode::new(0x30, "BMI", 2, 2, AddressingMode::None);
+        opcode_table[0xD0] = Opcode::new(0xD0, "BNE", 2, 2, AddressingMode::None);
+        opcode_table[0x10] = Opcode::new(0x10, "BPL", 2, 2, AddressingMode::None);
+
         opcode_table[0x00] = Opcode::new(0x00, "BRK", 1, 7, AddressingMode::None);
+
+        opcode_table[0x50] = Opcode::new(0x50, "BVC", 2, 2, AddressingMode::None);
+        opcode_table[0x70] = Opcode::new(0x70, "BVS", 2, 2, AddressingMode::None);
 
         opcode_table[0x18] = Opcode::new(0x18, "CLC", 1, 2, AddressingMode::None);
         opcode_table[0xD8] = Opcode::new(0xD8, "CLD", 1, 2, AddressingMode::None);
@@ -565,9 +716,13 @@ impl<'a> CPU<'a> {
         opcode_table[0xF6] = Opcode::new(0xF6, "INC", 2, 6, AddressingMode::ZeroPage_X);
         opcode_table[0xEE] = Opcode::new(0xEE, "INC", 3, 6, AddressingMode::Absolute);
         opcode_table[0xFE] = Opcode::new(0xFE, "INC", 3, 7, AddressingMode::Absolute_X);
-        
+
         opcode_table[0xE8] = Opcode::new(0xE8, "INX", 1, 2, AddressingMode::None);
         opcode_table[0xC8] = Opcode::new(0xC8, "INY", 1, 2, AddressingMode::None);
+
+        opcode_table[0x4C] = Opcode::new(0x4C, "JMP", 1, 2, AddressingMode::None);
+        opcode_table[0x6C] = Opcode::new(0x6C, "JMP", 1, 2, AddressingMode::None);
+        opcode_table[0x20] = Opcode::new(0x20, "JSR", 1, 2, AddressingMode::None);
 
         opcode_table[0xA9] = Opcode::new(0xA9, "LDA", 2, 2, AddressingMode::Immediate);
         opcode_table[0xA5] = Opcode::new(0xA5, "LDA", 2, 3, AddressingMode::ZeroPage);
@@ -623,6 +778,9 @@ impl<'a> CPU<'a> {
         opcode_table[0x76] = Opcode::new(0x76, "ROR", 2, 6, AddressingMode::ZeroPage_X);
         opcode_table[0x6E] = Opcode::new(0x6E, "ROR", 3, 6, AddressingMode::Absolute);
         opcode_table[0x7E] = Opcode::new(0x7E, "ROR", 3, 7, AddressingMode::Absolute_X);
+
+        opcode_table[0x40] = Opcode::new(0x40, "RTI", 1, 6, AddressingMode::None);
+        opcode_table[0x60] = Opcode::new(0x60, "RTS", 1, 6, AddressingMode::None);
 
         opcode_table[0xE9] = Opcode::new(0xE9, "SBC", 2, 2, AddressingMode::Immediate);
         opcode_table[0xE5] = Opcode::new(0xE5, "SBC", 2, 3, AddressingMode::ZeroPage);
